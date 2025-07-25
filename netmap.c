@@ -163,17 +163,17 @@ netmap_open(struct nm_if *nmif)
 		netmap_close(nmif);
 		return (-1);
 	}
-DPRINTF("fd: %d\n", nmif->nm_if_fd);
-DPRINTF("name: %s\n", nmreq.nr_name);
-DPRINTF("version: %d\n", nmreq.nr_version);
-DPRINTF("offset: %d\n", nmreq.nr_offset);
-DPRINTF("memsize: %d\n", nmreq.nr_memsize);
-DPRINTF("tx_slots: %d\n", nmreq.nr_tx_slots);
-DPRINTF("rx_slots: %d\n", nmreq.nr_rx_slots);
-DPRINTF("tx_rings: %d\n", nmreq.nr_tx_rings);
-DPRINTF("rx_rings: %d\n", nmreq.nr_rx_rings);
-DPRINTF("ringid: %#x\n", nmreq.nr_ringid);
-DPRINTF("flags: %#x\n", nmreq.nr_flags);
+YA_DPRINTF("fd: %d\n", nmif->nm_if_fd);
+YA_DPRINTF("name: %s\n", nmreq.nr_name);
+YA_DPRINTF("version: %d\n", nmreq.nr_version);
+YA_DPRINTF("offset: %d\n", nmreq.nr_offset);
+YA_DPRINTF("memsize: %d\n", nmreq.nr_memsize);
+YA_DPRINTF("tx_slots: %d\n", nmreq.nr_tx_slots);
+YA_DPRINTF("rx_slots: %d\n", nmreq.nr_rx_slots);
+YA_DPRINTF("tx_rings: %d\n", nmreq.nr_tx_rings);
+YA_DPRINTF("rx_rings: %d\n", nmreq.nr_rx_rings);
+YA_DPRINTF("ringid: %#x\n", nmreq.nr_ringid);
+YA_DPRINTF("flags: %#x\n", nmreq.nr_flags);
 	nmif->nm_if_memsize = nmreq.nr_memsize;
 	nmif->nm_if_mem = mmap(NULL, nmif->nm_if_memsize,
 	    PROT_READ | PROT_WRITE, MAP_SHARED, nmif->nm_if_fd, 0);

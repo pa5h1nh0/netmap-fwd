@@ -40,7 +40,7 @@
 #define	MAXBUFSZ	(BUFSZ * 1024)
 
 int
-dprintf(const char *fmt, ...)
+ya_dprintf(const char *fmt, ...)
 {
 	char tmp[MAXBUFSZ];
 	int expired, len;

@@ -391,37 +391,37 @@ arp_input(struct nm_if *nmif, int ring, char *buf, int len)
 	struct in_addr dst, src;
 
 	if (len < sizeof(struct arphdr)) {
-		DPRINTF("%s: discarding the packet, too short (%d).\n",
+		YA_DPRINTF("%s: discarding the packet, too short (%d).\n",
 		    __func__, len);
 		pktcnt.arp_drop++;
 		return (-1);
 	}
 	ah = (struct arphdr *)buf;
 	if (len < arphdr_len(ah)) {
-		DPRINTF("%s: discarding the packet, too short (%d).\n",
+		YA_DPRINTF("%s: discarding the packet, too short (%d).\n",
 		    __func__, len);
 		pktcnt.arp_drop++;
 		return (-1);
 	}
 	if (ntohs(ah->ar_hrd) != ARPHRD_ETHER) {
-		DPRINTF("%s: discarding non-ethernet packet.\n", __func__);
+		YA_DPRINTF("%s: discarding non-ethernet packet.\n", __func__);
 		pktcnt.arp_drop++;
 		return (-1);
 	}
 	if (ntohs(ah->ar_pro) != ETHERTYPE_IP) {
-		DPRINTF("%s: unsupported protocol %#04x, discarding packet.\n",
+		YA_DPRINTF("%s: unsupported protocol %#04x, discarding packet.\n",
 		    __func__, ntohs(ah->ar_pro));
 		pktcnt.arp_drop++;
 		return (-1);
 	}
 	if (ah->ar_hln != ETHER_ADDR_LEN) {
-		DPRINTF("%s: unsupported hardware length (%d), discarding packet.\n",
+		YA_DPRINTF("%s: unsupported hardware length (%d), discarding packet.\n",
 		    __func__, ah->ar_hln);
 		pktcnt.arp_drop++;
 		return (-1);
 	}
 	if (ah->ar_pln != sizeof(in_addr_t)) {
-		DPRINTF("%s: unsupported protocol length (%d), discarding packet.\n",
+		YA_DPRINTF("%s: unsupported protocol length (%d), discarding packet.\n",
 		    __func__, ah->ar_pln);
 		pktcnt.arp_drop++;
 		return (-1);
@@ -445,7 +445,7 @@ arp_input(struct nm_if *nmif, int ring, char *buf, int len)
 		pktcnt.arp_reply++;
 		break;
 	default:
-		DPRINTF("%s: ARP operation not supported, discarding packet.\n",
+		YA_DPRINTF("%s: ARP operation not supported, discarding packet.\n",
 		    __func__);
 		pktcnt.arp_drop++;
 		return (-1);
@@ -463,7 +463,7 @@ arp_request(struct nm_if *nmif, struct in_addr *dst)
 
 	addr = inet_get_if_addr(nmif);
 	if (addr == NULL) {
-		DPRINTF("%s: no IP for %s\n", __func__, nmif->nm_if_name);
+		YA_DPRINTF("%s: no IP for %s\n", __func__, nmif->nm_if_name);
 		return (-1);
 	}
 	ah = (struct arphdr *)malloc(arphdr_len2(ETHER_ADDR_LEN,

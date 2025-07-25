@@ -66,7 +66,7 @@ ether_bridge(struct nm_if *nmif, int ring, char *inbuf, int len)
 
 	buf = NETMAP_GET_BUF(nring);
 	if (buf == NULL) {
-		DPRINTF("%s: no available buffer for tx (%s).\n",
+		YA_DPRINTF("%s: no available buffer for tx (%s).\n",
 		    __func__, nmif->nm_if_name);
 		parentif->nm_if_txsync = 1;
 		pktcnt.tx_drop++;
@@ -95,7 +95,7 @@ ether_input(struct nm_if *nmif, int ring, char *buf, int len)
 	struct nm_if_vlan *vlan;
 
 	if (len < ETHER_HDR_LEN) {
-		DPRINTF("%s: %s: discarding packet, too short.\n",
+		YA_DPRINTF("%s: %s: discarding packet, too short.\n",
 		    __func__, nmif->nm_if_name);
 		pktcnt.rx_drop++;
 		return (-1);
@@ -115,7 +115,7 @@ ether_input(struct nm_if *nmif, int ring, char *buf, int len)
 	case ETHERTYPE_VLAN:
 		//pktcnt.rx_vlan++;
 		if (len < ETHER_VLAN_ENCAP_LEN) {
-			DPRINTF("%s: %s: discarding vlan packet, too short.\n",
+			YA_DPRINTF("%s: %s: discarding vlan packet, too short.\n",
 			    __func__, nmif->nm_if_name);
 			pktcnt.rx_drop++;
 			return (-1);
@@ -124,7 +124,7 @@ ether_input(struct nm_if *nmif, int ring, char *buf, int len)
 		vlan = if_find_vlan(nmif, ntohs(evl->evl_tag));
 		if (vlan == NULL) {
 			pktcnt.rx_drop++;
-			DPRINTF("%s: %s: unknown vlan tag %d, discanding packet.\n",
+			YA_DPRINTF("%s: %s: unknown vlan tag %d, discanding packet.\n",
 			    __func__, nmif->nm_if_name, ntohs(evl->evl_tag));
 			return (-1);
 		}
@@ -142,7 +142,7 @@ ether_input(struct nm_if *nmif, int ring, char *buf, int len)
 		break;
 	default:
 		pktcnt.rx_drop++;
-		DPRINTF("%s: %s: protocol %#04x not supported, discanding packet.\n",
+		YA_DPRINTF("%s: %s: protocol %#04x not supported, discanding packet.\n",
 		    __func__, nmif->nm_if_name, ntohs(eh->ether_type));
 		err = -1;
 	}
@@ -171,20 +171,20 @@ ether_output(struct nm_if *nmif, struct in_addr *dst, struct ether_addr *lladdr,
 	parentif = NETMAP_PARENTIF(nmif);
 	ring = netmap_hw_tx_ring(parentif->nm_if_ifp);
 	if (ring == NULL) {
-		DPRINTF("%s: no available ring for tx (%s).\n",
+		YA_DPRINTF("%s: no available ring for tx (%s).\n",
 		    __func__, parentif->nm_if_name);
 		parentif->nm_if_txsync = 1;
 		pktcnt.tx_drop++;
 		return (-1);
 	}
 	if (inlen + ETHER_HDR_LEN > ring->nr_buf_size) {
-		DPRINTF("%s: buffer too big, cannot tx.\n", __func__);
+		YA_DPRINTF("%s: buffer too big, cannot tx.\n", __func__);
 		pktcnt.tx_drop++;
 		return (-1);
 	}
 	buf = NETMAP_GET_BUF(ring);
 	if (buf == NULL) {
-		DPRINTF("%s: no available buffer for tx (%s).\n",
+		YA_DPRINTF("%s: no available buffer for tx (%s).\n",
 		    __func__, parentif->nm_if_name);
 		parentif->nm_if_txsync = 1;
 		pktcnt.tx_drop++;
@@ -226,7 +226,7 @@ ether_output(struct nm_if *nmif, struct in_addr *dst, struct ether_addr *lladdr,
 
 	NETMAP_UPDATE_LEN(ring, len);
 
-//DPRINTF("%s: len: %d\n", __func__, len);
+//YA_DPRINTF("%s: len: %d\n", __func__, len);
 //if (verbose) hexdump(buf, len, NULL, 0);
 
 	/* Update the current ring slot. */

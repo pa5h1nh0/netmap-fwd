@@ -225,7 +225,7 @@ ip_fwd(struct nm_if *nmif, char *buf, int len)
 	ip = (struct ip *)buf;
 	rt = inet_match(&ip->ip_dst);
 	if (rt == NULL) {
-		DPRINTF("%s: no route for host (dst: %s)\n",
+		YA_DPRINTF("%s: no route for host (dst: %s)\n",
 		    __func__, inet_ntoa(ip->ip_dst));
 		return (-1);
 	}
@@ -276,32 +276,32 @@ ip_input(struct nm_if *nmif, int ring, char *buf, int len)
 	struct ip *ip;
 
 	if (len < sizeof(*ip)) {
-		DPRINTF("%s: discard packet, too short (%d).\n", __func__, len);
+		YA_DPRINTF("%s: discard packet, too short (%d).\n", __func__, len);
 		pktcnt.ip_drop++;
 		return (-1);
 	}
 	ip = (struct ip *)buf;
 	if (ip->ip_v != IPVERSION) {
-		DPRINTF("%s: discard packet, bad ver (%#x).\n",
+		YA_DPRINTF("%s: discard packet, bad ver (%#x).\n",
 		    __func__, ip->ip_v);
 		pktcnt.ip_drop++;
 		return (-1);
 	}
 	hlen = ip->ip_hl << 2;
 	if (hlen < sizeof(struct ip)) { /* minimum header length */
-		DPRINTF("%s: discard packet, bad header len (%d).\n",
+		YA_DPRINTF("%s: discard packet, bad header len (%d).\n",
 		    __func__, len);
 		pktcnt.ip_drop++;
 		return (-1);
 	}
 	if (in_cksum(buf, hlen)) {
-		DPRINTF("%s: bad checksum, discarding the packet.\n", __func__);
+		YA_DPRINTF("%s: bad checksum, discarding the packet.\n", __func__);
 		pktcnt.ip_drop++;
 		return (-1);
 	}
 	ip_len = ntohs(ip->ip_len);
 	if (ip_len < hlen || ip_len > len) {
-		DPRINTF("%s: discard packet, bad ip len (%d).\n",
+		YA_DPRINTF("%s: discard packet, bad ip len (%d).\n",
 		    __func__, len);
 		pktcnt.ip_drop++;
 		return (-1);
@@ -310,7 +310,7 @@ ip_input(struct nm_if *nmif, int ring, char *buf, int len)
 	/* Discard packet addressed to 127/8. */
 	if ((ntohl(ip->ip_dst.s_addr) >> IN_CLASSA_NSHIFT) == IN_LOOPBACKNET ||
 	    (ntohl(ip->ip_src.s_addr) >> IN_CLASSA_NSHIFT) == IN_LOOPBACKNET) {
-		DPRINTF("%s: bad address (127/8), discanding the packet.\n",
+		YA_DPRINTF("%s: bad address (127/8), discanding the packet.\n",
 		    __func__);
 		pktcnt.ip_drop++;
 		return (-1);

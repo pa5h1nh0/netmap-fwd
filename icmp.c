@@ -126,20 +126,20 @@ icmp_input(struct nm_if *nmif, char *buf, int len)
 	hlen = ip->ip_hl << 2;
 	icmp_len = len - hlen;
 	if (icmp_len < ICMP_MINLEN || icmp_len < sizeof(struct icmphdr)) {
-		DPRINTF("%s: packet too short, discading (%d).\n",
+		YA_DPRINTF("%s: packet too short, discading (%d).\n",
 		    __func__, icmp_len);
 		pktcnt.icmp_drop++;
 		return (-1);
 	}
 	icmp = (struct icmp *)(buf + hlen);
 	if (in_cksum(buf + hlen, len - hlen)) {
-		DPRINTF("%s: bad checksum, discarding the packet.\n", __func__);
+		YA_DPRINTF("%s: bad checksum, discarding the packet.\n", __func__);
 		pktcnt.icmp_drop++;
 		return (-1);
 	}
 
 	if (icmp->icmp_type != ICMP_ECHO || icmp->icmp_code != 0) {
-		DPRINTF("%s: unknown ICMP type and code, discading the packet (%#x:%d).\n",
+		YA_DPRINTF("%s: unknown ICMP type and code, discading the packet (%#x:%d).\n",
 		    __func__, icmp->icmp_type, icmp->icmp_code);
 		pktcnt.icmp_unknown++;
 		return (-1);
@@ -161,7 +161,7 @@ icmp_error(struct nm_if *nmif, char *buf, int len, int type, int code)
 	unsigned int icmplen, icmpelen, nlen, oiphlen;
 
 	if (type > ICMP_MAXTYPE) {
-		DPRINTF("%s: invalid ICMP type: %d\n", __func__, type);
+		YA_DPRINTF("%s: invalid ICMP type: %d\n", __func__, type);
 		return (-1);
 	}
 

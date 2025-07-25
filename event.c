@@ -95,7 +95,7 @@ ev_init(void)
 		event_config_free(cfg);
 		return (-1);
 	}
-	DPRINTF("event method: %s\n", event_base_get_method(ev_base));
+	YA_DPRINTF("event method: %s\n", event_base_get_method(ev_base));
 	event_config_free(cfg);
 
 	/* Add the cleanup callback. */

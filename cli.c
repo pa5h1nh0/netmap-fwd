@@ -482,7 +482,7 @@ cli_ev_write(struct cli *cli)
 			/* EAGAIN */
 			return;
 		}
-		DPRINTF("cannot write to cli (%d): %s\n",
+		YA_DPRINTF("cannot write to cli (%d): %s\n",
 		    cli->fd, strerror(errno));
 		cli_disconnect(cli);
 		return;
@@ -501,7 +501,7 @@ cli_ev_read(struct cli *cli)
 	ssize_t i, len;
 
 	if (cli->resid == MAXCLIBUF) {
-		DPRINTF(
+		YA_DPRINTF(
 		    "dropping cli connection - unsupported cli command (%d)\n",
 		    cli->fd);
 		cli_disconnect(cli);
@@ -514,12 +514,12 @@ cli_ev_read(struct cli *cli)
 			/* EAGAIN */
 			return;
 		}
-		DPRINTF("cannot read from cli connection (%d): %s\n",
+		YA_DPRINTF("cannot read from cli connection (%d): %s\n",
 		    cli->fd, strerror(errno));
 		cli_disconnect(cli);
 		return;
 	} else if (len == 0) {
-		DPRINTF("cli connection closed (%d)\n", cli->fd);
+		YA_DPRINTF("cli connection closed (%d)\n", cli->fd);
 		cli_disconnect(cli);
 		return;
 	}
@@ -532,7 +532,7 @@ cli_ev_read(struct cli *cli)
 			if (cli->buf[i] == '\n') {
 				switch (cli_parse(cli, cli->buf, i + 1)) {
 				case -1:
-					DPRINTF(
+					YA_DPRINTF(
 					    "dropping cli connection - cannot parse cli command (%d)\n",
 					    cli->fd);
 					/* fallthrough */
@@ -562,7 +562,7 @@ cli_ev_rdwr(evutil_socket_t fd, short event, void *data)
 	cli = (struct cli *)data;
 
 	if (event & EV_TIMEOUT) {
-		DPRINTF("debug: %s timeout\n", __func__);
+		YA_DPRINTF("debug: %s timeout\n", __func__);
 		cli_disconnect(cli);
 		return;
 	}
@@ -587,14 +587,14 @@ cli_connect(evutil_socket_t socket, short event, void *data)
 	cli->slen = sizeof(struct sockaddr_un);
 	cli->fd = accept(socket, (struct sockaddr *)&cli->sun, &cli->slen);
 	if (cli->fd < 0) {
-		DPRINTF("debug: unable to accept new cli connection: %s\n",
+		YA_DPRINTF("debug: unable to accept new cli connection: %s\n",
 		    strerror(errno));
 		free(cli);
 		return;
 	}
 	if (net_fd_config(cli->fd,
 	    NET_KEEPALIVE | NET_NO_LINGER | NET_NONBLOCK) == -1) {
-		DPRINTF("debug: drop cli connection, cannot set fd options\n");
+		YA_DPRINTF("debug: drop cli connection, cannot set fd options\n");
 		while (close(cli->fd) != 0 && errno == EINTR)
 			;
 		free(cli);
@@ -602,14 +602,14 @@ cli_connect(evutil_socket_t socket, short event, void *data)
 	}
 
 	if (++clis->nclients > clis->maxclients) {
-		DPRINTF("debug: drop cli connection, too many connections\n");
+		YA_DPRINTF("debug: drop cli connection, too many connections\n");
 		while (close(cli->fd) != 0 && errno == EINTR)
 			;
 		clis->nclients--;
 		free(cli);
 		return;
 	}
-	DPRINTF("debug: new cli connection\n");
+	YA_DPRINTF("debug: new cli connection\n");
 
 	/* Alloc the tx and rx buffers for this cli connection. */
 	cli->buf = (char *)malloc(MAXCLIBUF);
