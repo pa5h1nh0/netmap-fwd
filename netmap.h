@@ -48,7 +48,7 @@
 		NETMAP_SLOT_LEN(_r) = _len;				\
 	} while (0)
 
-inline struct netmap_ring *
+static inline struct netmap_ring *
 netmap_hw_tx_ring(struct netmap_if *ifp)
 {
 	int i;

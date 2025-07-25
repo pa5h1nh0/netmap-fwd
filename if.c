@@ -270,7 +270,7 @@ if_del(struct nm_if *nmif)
 	free(nmif);
 }
 
-static struct nm_if *
+struct nm_if *
 if_get(const char *ifname)
 {
 	struct nm_if *nmif;

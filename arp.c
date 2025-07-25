@@ -35,6 +35,7 @@
 #include <netinet/in.h>
 
 #include <errno.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <libutil.h>
@@ -53,11 +54,13 @@
 extern int nohostring;
 extern int verbose;
 
-struct arp_head {
-	LIST_HEAD(arplist_, arp)	arplist;
-	int			maxtries;
-	int			tdown;
-	int			tkeep;
+struct arp_head
+{
+	LIST_HEAD(arplist_, arp)
+	arplist;
+	int maxtries;
+	int tdown;
+	int tkeep;
 };
 
 static void arp_del(struct arp *);
@@ -79,24 +82,25 @@ arp_cli_list(char **buf, int *buflen, int *resid)
 	err = 0;
 	now = time(NULL);
 	arp_head = &arp_head_g;
-	LIST_FOREACH(arp, &arp_head->arplist, arp_next) {
+	LIST_FOREACH(arp, &arp_head->arplist, arp_next)
+	{
 		if ((arp->flags & ARP_VALID) == 0)
 			etheraddr = "(incomplete)";
 		else
 			etheraddr = ether_ntoa(&arp->lladdr);
 		err = printf_buf(buf, buflen, resid,
-		    "? (%s) at %s on %s", inet_ntoa(arp->addr),
-		    etheraddr, arp->nmif->nm_if_name);
+						 "? (%s) at %s on %s", inet_ntoa(arp->addr),
+						 etheraddr, arp->nmif->nm_if_name);
 		if (err != 0)
 			break;
 		if (arp->flags & ARP_PERMANENT)
 			err = printf_buf(buf, buflen, resid, " permanent\n");
 		else
 			err = printf_buf(buf, buflen, resid,
-			    " expire%s %ld second%s\n",
-			    (arp->expire - now > 1) ? "s" : "",
-			    arp->expire - now,
-			    (arp->expire - now > 1) ? "s" : "");
+							 " expire%s %ld second%s\n",
+							 (arp->expire - now > 1) ? "s" : "",
+							 arp->expire - now,
+							 (arp->expire - now > 1) ? "s" : "");
 		if (err != 0)
 			break;
 	}
@@ -104,35 +108,129 @@ arp_cli_list(char **buf, int *buflen, int *resid)
 	return (err);
 }
 
+static int get_token(const char *str, char *token, const size_t token_len,
+					 const char *delim)
+{
+	char *token_next;
+
+	memset(token, 0, token_len);
+
+	token_next = strstr(str, delim);
+	if (!token_next)
+		return -1;
+
+	strncpy(token, str, token_next - str);
+
+	return 0;
+}
+
 /*
  * Parse arp cli arguments.
  */
 static int
-arp_cli_parse_args(struct cli_args *args, int *delete, int *deleteall,
-	struct in_addr *host)
+arp_cli_parse_args(struct cli_args *args, int *add, int *delete, int *deleteall,
+				   struct ether_addr *eth_addr, struct in_addr *host, char **ifname)
 {
 	int i, nargs;
 	struct cli_arg *arg;
 
 	arg = STAILQ_FIRST(&args->args_list);
 	nargs = args->args - 1;
-	while (nargs-- > 0) {
+	while (nargs-- > 0)
+	{
 		arg = STAILQ_NEXT(arg, arg_next);
 		if (arg == NULL || arg->len == 0)
 			return (-2);
+
 		if (*arg->arg != '-')
 			break;
-		for (i = 1; i < arg->len; i++) {
-			if (*(arg->arg + i) == 'd')
+
+		for (i = 1; i < arg->len; i++)
+		{
+			if (arg->arg[i] == 's')
+			{
+				*add = 1;
+				break;
+			}
+
+			if (arg->arg[i] == 'd')
 				*delete = 1;
-			if (*(arg->arg + i) == 'a')
+			if (arg->arg[i] == 'a')
 				*deleteall = 1;
 		}
+
+		if (*add == 1)
+			break;
 	}
+
+	// Parse the insertion of a static ARP entry
+	if (*add == 1)
+	{
+		char buf[64];
+
+		if (nargs != 3)
+		{
+			ya_dprintf("add static ARP entry expects only 3 arguments "
+					   "'<IPv4> <MAC> <ifname>' in this exact order [nargs=%d]!\n",
+					   nargs);
+			return -2;
+		}
+
+		// parse IPv4 address
+		arg = STAILQ_NEXT(arg, arg_next);
+		if (arg == NULL || arg->len == 0)
+			return (-2);
+		if (arg->len >= sizeof(buf))
+			return -2;
+		// if (get_token(arg->arg, buf, sizeof(buf), " "))
+		// 	return -2;
+
+		bzero(buf, sizeof(buf));
+		strncpy(buf, arg->arg, arg->len);
+		host->s_addr = inet_addr(buf);
+		if (host->s_addr == INADDR_BROADCAST)
+			return (-2);
+
+		// parse MAC address
+		arg = STAILQ_NEXT(arg, arg_next);
+		if (arg == NULL || arg->len == 0)
+			return (-2);
+		if (arg->len >= sizeof(buf))
+			return -2;
+		// if (get_token(arg->arg, buf, sizeof(buf), " "))
+		// 	return -2;
+
+		bzero(buf, sizeof(buf));
+		strncpy(buf, arg->arg, arg->len);
+		if (sscanf(buf, "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx",
+				   eth_addr->octet, eth_addr->octet + 1, eth_addr->octet + 2,
+				   eth_addr->octet + 3, eth_addr->octet + 4, eth_addr->octet + 5) != 6)
+		{
+			ya_dprintf("invalid MAC address format! The only valid format "
+					   "currently recognized is 'de:ad:c0:de:00:00'!\n");
+			return -2;
+		}
+
+		// parse network interface name
+		arg = STAILQ_NEXT(arg, arg_next);
+		if (arg == NULL || arg->len == 0)
+			return (-2);
+
+		if (if_get(arg->arg) == NULL)
+		{
+			ya_dprintf("invalid network interface name '%s'!\n", arg->arg);
+			return -2;
+		}
+		*ifname = arg->arg;
+
+		return 0;
+	}
+
 	if (*delete == 1 && *deleteall == 1)
 		return (0);
 	if (*delete == 0 || nargs == -1)
 		return (-2);
+
 	host->s_addr = inet_addr(arg->arg);
 	if (host->s_addr == INADDR_BROADCAST)
 		return (-2);
@@ -150,7 +248,8 @@ arp_cli_deleteall(void)
 	struct arp_head *arp_head;
 
 	arp_head = &arp_head_g;
-	LIST_FOREACH_SAFE(arp, &arp_head->arplist, arp_next, tmp) {
+	LIST_FOREACH_SAFE(arp, &arp_head->arplist, arp_next, tmp)
+	{
 		if (arp->flags & ARP_PERMANENT)
 			continue;
 		arp_del(arp);
@@ -169,9 +268,10 @@ arp_cli_delete_host(struct in_addr *host)
 	struct arp_head *arp_head;
 
 	arp_head = &arp_head_g;
-	LIST_FOREACH_SAFE(arp, &arp_head->arplist, arp_next, tmp) {
-		if (arp->flags & ARP_PERMANENT)
-			continue;
+	LIST_FOREACH_SAFE(arp, &arp_head->arplist, arp_next, tmp)
+	{
+		// if (arp->flags & ARP_PERMANENT)
+		// 	continue;
 		if (memcmp(&arp->addr, host, sizeof(arp->addr)) != 0)
 			continue;
 		arp_del(arp);
@@ -187,8 +287,9 @@ arp_cli_delete_host(struct in_addr *host)
 static int
 arp_cli(struct cli *cli, struct cli_args *args)
 {
-	char *buf;
-	int buflen, delete, deleteall, err, resid;
+	char *buf, *ifname;
+	int buflen, add, delete, deleteall, err, resid;
+	struct ether_addr eth_addr;
 	struct in_addr host;
 
 	resid = 0;
@@ -198,10 +299,28 @@ arp_cli(struct cli *cli, struct cli_args *args)
 		exit(51);
 	memset(buf, 0, buflen);
 
-	if (args->args > 1) {
-		delete = deleteall = 0;
-		if (arp_cli_parse_args(args, &delete, &deleteall, &host) != 0)
+	if (args->args > 1)
+	{
+		ifname = NULL;
+		memset(&eth_addr, 0, sizeof(eth_addr));
+		add = delete = deleteall = 0;
+		if (arp_cli_parse_args(args, &add, &delete, &deleteall, &eth_addr,
+							   &host, &ifname) != 0)
+		{
 			return (-2);
+		}
+
+		if (add)
+		{
+			struct nm_if *nmif;
+
+			if (!ifname)
+				return -2;
+			if (!(nmif = if_get(ifname)))
+				return -2;
+			if (arp_add(nmif, &eth_addr, &host, ARP_PERMANENT) == NULL)
+				return -2;
+		}
 		if (deleteall)
 			return (arp_cli_deleteall());
 		if (delete)
@@ -220,16 +339,20 @@ arp_cli_help(struct cli *cli, struct cli_args *args)
 {
 	const char *p;
 
-	p = "arp -d host\t- delete ARP entry for host\n"
-	    "arp -d -a\t- delete all ARP entries\n";
+	p = "arp -s <IPv4> <MAC> <ifname>\t- add static ARP entry, "
+		"with the 'MAC' address in this specific format 'de:ad:c0:de:00:00', "
+		"and with 'ifname' the network interface via which the given MAC "
+		"address is reachable\n"
+
+		"arp -d host\t- delete ARP entry for host\n"
+		"arp -d -a\t- delete all ARP entries\n";
 	if (cli_obuf_append(cli, p, strlen(p)) == -1)
 		return (-1);
 
 	return (0);
 }
 
-void
-arp_init(void)
+void arp_init(void)
 {
 	struct arp_head *arp_head;
 
@@ -250,7 +373,8 @@ arp_del(struct arp *arp)
 {
 
 	LIST_REMOVE(arp, arp_next);
-	if (arp->timer) {
+	if (arp->timer)
+	{
 		evtimer_del(arp->timer);
 		event_free(arp->timer);
 	}
@@ -270,7 +394,7 @@ arp_timer(int evfd, short event, void *data)
 
 struct arp *
 arp_add(struct nm_if *nmif, struct ether_addr *lladdr, struct in_addr *addr,
-	int flags)
+		int flags)
 {
 	struct arp *arp, *entry;
 	struct arp_head *arp_head;
@@ -279,13 +403,16 @@ arp_add(struct nm_if *nmif, struct ether_addr *lladdr, struct in_addr *addr,
 	arp_head = &arp_head_g;
 	/* Search for an existen entry. */
 	entry = NULL;
-	LIST_FOREACH(arp, &arp_head->arplist, arp_next) {
-		if (memcmp(&arp->addr, addr, sizeof(arp->addr)) == 0) {
+	LIST_FOREACH(arp, &arp_head->arplist, arp_next)
+	{
+		if (memcmp(&arp->addr, addr, sizeof(arp->addr)) == 0)
+		{
 			entry = arp;
 			break;
 		}
 	}
-	if (entry == NULL) {
+	if (entry == NULL)
+	{
 		/* New entry. */
 		arp = (struct arp *)malloc(sizeof(*arp));
 		if (arp == NULL)
@@ -294,35 +421,48 @@ arp_add(struct nm_if *nmif, struct ether_addr *lladdr, struct in_addr *addr,
 		arp->nmif = nmif;
 		memcpy(&arp->addr, addr, sizeof(arp->addr));
 		arp->timer = evtimer_new(ev_get_base(), arp_timer, arp);
-		if (arp->timer == NULL) {
+		if (arp->timer == NULL)
+		{
 			free(arp);
 			return (NULL);
 		}
 		memcpy(&arp->lladdr, lladdr, sizeof(arp->lladdr));
 		LIST_INSERT_HEAD(&arp_head->arplist, arp, arp_next);
-	} else
+	}
+	else
 		arp = entry;
 
 	arp->flags |= flags;
 	memset(&bcast, 0xff, sizeof(bcast));
-	if (memcmp(lladdr, &bcast, sizeof(*lladdr)) != 0) {
+	if (memcmp(lladdr, &bcast, sizeof(*lladdr)) != 0)
+	{
 		memcpy(&arp->lladdr, lladdr, sizeof(arp->lladdr));
 		arp->flags |= ARP_VALID;
-		arp->expire = time(NULL) + arp_head->tkeep;
-		arp->tv_timer.tv_sec = arp_head->tkeep;
-	} else {
+
+		if (arp->flags & ARP_PERMANENT)
+		{
+			// static ARP entries are kept for 24 hours max
+			arp->expire = time(NULL) + (24 * 3600);
+			arp->tv_timer.tv_sec = 24 * 3600;
+		}
+		else
+		{
+			arp->expire = time(NULL) + arp_head->tkeep;
+			arp->tv_timer.tv_sec = arp_head->tkeep;
+		}
+	}
+	else
+	{
 		arp->expire = time(NULL) + arp_head->tdown;
 		arp->tv_timer.tv_sec = arp_head->tdown;
 	}
 
-	if ((arp->flags & ARP_PERMANENT) == 0)
-		evtimer_add(arp->timer, &arp->tv_timer);
+	evtimer_add(arp->timer, &arp->tv_timer);
 
 	return (arp);
 }
 
-int
-arp_search_if(struct nm_if *nmif, struct in_addr *addr, struct arp **lladdr)
+int arp_search_if(struct nm_if *nmif, struct in_addr *addr, struct arp **lladdr)
 {
 	struct arp *arp;
 	struct arp_head *arp_head;
@@ -330,14 +470,17 @@ arp_search_if(struct nm_if *nmif, struct in_addr *addr, struct arp **lladdr)
 
 	now = time(NULL);
 	arp_head = &arp_head_g;
-	LIST_FOREACH(arp, &arp_head->arplist, arp_next) {
+	LIST_FOREACH(arp, &arp_head->arplist, arp_next)
+	{
 		if (arp->nmif != nmif)
 			continue;
 		if (memcmp(&arp->addr, addr, sizeof(arp->addr)) != 0)
 			continue;
-		if ((arp->flags & ARP_VALID) == 0) {
+		if ((arp->flags & ARP_VALID) == 0)
+		{
 			/* Retry no more than once per second. */
-			if (arp->expire - arp_head->tdown < now) {
+			if (arp->expire - arp_head->tdown < now)
+			{
 				if (++arp->asked >= arp_head->maxtries)
 					return (EHOSTDOWN);
 				arp_request(nmif, addr);
@@ -360,12 +503,12 @@ arp_search_if(struct nm_if *nmif, struct in_addr *addr, struct arp **lladdr)
 
 static int
 arp_send_reply(struct nm_if *nmif, struct ether_addr *ea, struct in_addr *src,
-	struct in_addr *dst)
+			   struct in_addr *dst)
 {
 	struct arphdr *ah;
 
 	ah = (struct arphdr *)malloc(arphdr_len2(ETHER_ADDR_LEN,
-	    sizeof(in_addr_t)));
+											 sizeof(in_addr_t)));
 	memset(ah, 0, arphdr_len2(ETHER_ADDR_LEN, sizeof(in_addr_t)));
 	ah->ar_hrd = ntohs(ARPHRD_ETHER);
 	ah->ar_pro = ntohs(ETHERTYPE_IP);
@@ -384,60 +527,66 @@ arp_send_reply(struct nm_if *nmif, struct ether_addr *ea, struct in_addr *src,
 	return (0);
 }
 
-int
-arp_input(struct nm_if *nmif, int ring, char *buf, int len)
+int arp_input(struct nm_if *nmif, int ring, char *buf, int len)
 {
 	struct arphdr *ah;
 	struct in_addr dst, src;
 
-	if (len < sizeof(struct arphdr)) {
+	if (len < sizeof(struct arphdr))
+	{
 		YA_DPRINTF("%s: discarding the packet, too short (%d).\n",
-		    __func__, len);
+				   __func__, len);
 		pktcnt.arp_drop++;
 		return (-1);
 	}
 	ah = (struct arphdr *)buf;
-	if (len < arphdr_len(ah)) {
+	if (len < arphdr_len(ah))
+	{
 		YA_DPRINTF("%s: discarding the packet, too short (%d).\n",
-		    __func__, len);
+				   __func__, len);
 		pktcnt.arp_drop++;
 		return (-1);
 	}
-	if (ntohs(ah->ar_hrd) != ARPHRD_ETHER) {
+	if (ntohs(ah->ar_hrd) != ARPHRD_ETHER)
+	{
 		YA_DPRINTF("%s: discarding non-ethernet packet.\n", __func__);
 		pktcnt.arp_drop++;
 		return (-1);
 	}
-	if (ntohs(ah->ar_pro) != ETHERTYPE_IP) {
+	if (ntohs(ah->ar_pro) != ETHERTYPE_IP)
+	{
 		YA_DPRINTF("%s: unsupported protocol %#04x, discarding packet.\n",
-		    __func__, ntohs(ah->ar_pro));
+				   __func__, ntohs(ah->ar_pro));
 		pktcnt.arp_drop++;
 		return (-1);
 	}
-	if (ah->ar_hln != ETHER_ADDR_LEN) {
+	if (ah->ar_hln != ETHER_ADDR_LEN)
+	{
 		YA_DPRINTF("%s: unsupported hardware length (%d), discarding packet.\n",
-		    __func__, ah->ar_hln);
+				   __func__, ah->ar_hln);
 		pktcnt.arp_drop++;
 		return (-1);
 	}
-	if (ah->ar_pln != sizeof(in_addr_t)) {
+	if (ah->ar_pln != sizeof(in_addr_t))
+	{
 		YA_DPRINTF("%s: unsupported protocol length (%d), discarding packet.\n",
-		    __func__, ah->ar_pln);
+				   __func__, ah->ar_pln);
 		pktcnt.arp_drop++;
 		return (-1);
 	}
 	memcpy(&dst, ar_tpa(ah), sizeof(dst));
 	memcpy(&src, ar_spa(ah), sizeof(src));
-	switch (ntohs(ah->ar_op)) {
+	switch (ntohs(ah->ar_op))
+	{
 	case ARPOP_REQUEST:
 		if (NETMAP_HOST_RING(NETMAP_PARENTIF(nmif), ring))
 			break;
 		if (!inet_our_addr(&dst))
-			return (0);	/* Not for us. */
+			return (0); /* Not for us. */
 		arp_add(nmif, (struct ether_addr *)ar_sha(ah), &src, 0);
 		if (nohostring)
 			arp_send_reply(nmif, (struct ether_addr *)ar_sha(ah),
-			    &src, &dst);
+						   &src, &dst);
 		pktcnt.arp_whohas++;
 		break;
 	case ARPOP_REPLY:
@@ -446,7 +595,7 @@ arp_input(struct nm_if *nmif, int ring, char *buf, int len)
 		break;
 	default:
 		YA_DPRINTF("%s: ARP operation not supported, discarding packet.\n",
-		    __func__);
+				   __func__);
 		pktcnt.arp_drop++;
 		return (-1);
 	}
@@ -454,20 +603,20 @@ arp_input(struct nm_if *nmif, int ring, char *buf, int len)
 	return (1);
 }
 
-int
-arp_request(struct nm_if *nmif, struct in_addr *dst)
+int arp_request(struct nm_if *nmif, struct in_addr *dst)
 {
 	struct arphdr *ah;
 	struct ether_header bcast;
 	struct inet_addr *addr;
 
 	addr = inet_get_if_addr(nmif);
-	if (addr == NULL) {
+	if (addr == NULL)
+	{
 		YA_DPRINTF("%s: no IP for %s\n", __func__, nmif->nm_if_name);
 		return (-1);
 	}
 	ah = (struct arphdr *)malloc(arphdr_len2(ETHER_ADDR_LEN,
-	    sizeof(in_addr_t)));
+											 sizeof(in_addr_t)));
 	memset(ah, 0, arphdr_len2(ETHER_ADDR_LEN, sizeof(in_addr_t)));
 	ah->ar_hrd = ntohs(ARPHRD_ETHER);
 	ah->ar_pro = ntohs(ETHERTYPE_IP);
@@ -484,7 +633,7 @@ arp_request(struct nm_if *nmif, struct in_addr *dst)
 
 	/* Send the arp packet. */
 	ether_output(nmif, dst, (struct ether_addr *)&bcast, ETHERTYPE_ARP,
-	    (char *)ah, arphdr_len(ah));
+				 (char *)ah, arphdr_len(ah));
 	free(ah);
 
 	return (0);
